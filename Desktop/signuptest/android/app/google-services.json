@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "861013440558",
+    "project_id": "sat-project-187",
+    "storage_bucket": "sat-project-187.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861013440558:android:46dbb9909b9851386007bf",
+        "android_client_info": {
+          "package_name": "com.example.sat_practice_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "861013440558-knueo0t69ta7flr0o8m8590u80np0r74.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCszALdknfXAEl2G4mqV7JPuKSslYTen_0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "861013440558-knueo0t69ta7flr0o8m8590u80np0r74.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "861013440558-5r8oopn0th2lejis2vaphhiv82blm98t.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.satPracticeApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
