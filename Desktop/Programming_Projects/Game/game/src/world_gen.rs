@@ -1,7 +1,5 @@
 use macroquad::prelude::*;
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum Tile { Empty, Bush, BerryBush, Water, TreeTrunk }
+use crate::environment::Tile;
 
 pub fn generate_grid() -> [[Tile; 20]; 20] {
     let mut grid = [[Tile::Empty; 20]; 20];

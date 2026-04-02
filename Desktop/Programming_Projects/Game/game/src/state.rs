@@ -1,5 +1,5 @@
 use macroquad::prelude::*;
-use crate::world_gen::Tile;
+use crate::environment::Tile;
 use crate::inventory::{Inventory, Item};
 use crate::player::Player;
 

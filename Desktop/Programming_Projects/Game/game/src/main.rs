@@ -1,26 +1,39 @@
 use macroquad::prelude::*;
 
+mod environment;
 mod world_gen;
 mod inventory;
 mod player;
 mod state;
 mod ui;
 
-use world_gen::Tile;
+use crate::environment::Tile;
 use player::Direction;
-use state::{GameState};
+use state::GameState;
 
-pub struct GameAsset { pub tex: Option<Texture2D>, pub name: String }
 
+//==================================================================================
+//                               Game Asset
+//==================================================================================
+//      Wrapper for all game assets. Charged with loading and displaying all assets 
+// in the game. If an asset is not available, it's name will be displayed.
+//==================================================================================
+pub struct GameAsset { pub texture: Option<Texture2D>, pub name: String }
 impl GameAsset {
+
+    //      load    ------------------------------------------------------------------
+    //  Async (so game not forced to wait) function that loads an asset's sprite
+    //  from memory
     pub async fn load(path: &str, display_name: &str) -> Self {
-        let tex = load_texture(path).await.ok();
-        if let Some(t) = &tex { t.set_filter(FilterMode::Nearest); }
-        GameAsset { tex, name: display_name.to_string() }
+        let texture = load_texture(path).await.ok();
+        if let Some(t) = &texture { t.set_filter(FilterMode::Nearest); }
+        GameAsset { texture, name: display_name.to_string() }
     }
 
+    //      draw    ------------------------------------------------------------------
+    //  Draw's the sprite for a given asset, or the name if sprite doesn't exit
     pub fn draw(&self, x: f32, y: f32, w: f32, h: f32, source: Option<Rect>) {
-        if let Some(t) = &self.tex {
+        if let Some(t) = &self.texture {
             draw_texture_ex(t, x, y, WHITE, DrawTextureParams { dest_size: Some(vec2(w, h)), source, ..Default::default() });
         } else {
             draw_rectangle(x, y, w, h, Color::new(0.2, 0.2, 0.2, 1.0));
@@ -33,9 +46,11 @@ impl GameAsset {
 
 enum Drawable { Player, Bush(usize, usize, bool), TreeTrunk(usize, usize) }
 
-#[macroquad::main("Grid World")]
+#[macroquad::main("Game")]
 async fn main() {
     let tile_size = 64.0; 
+
+    //Load in all sprites
     let player_sprite = GameAsset::load("assets/player.png", "Player").await;
     let fishing_sprite = GameAsset::load("assets/player_fishing.png", "Fishing").await; // NEW!
     let bobber_sprite = GameAsset::load("assets/bobber.png", "Bobber").await; // NEW!
@@ -53,9 +68,10 @@ async fn main() {
     let mut state = GameState::new();
 
     loop {
+        
         state.update();
         clear_background(BLACK);
-
+        
         let camera_x = state.player.pixel_x + (tile_size / 2.0) - (screen_width() / 2.0);
         let camera_y = state.player.pixel_y + (tile_size / 2.0) - (screen_height() / 2.0);
 
