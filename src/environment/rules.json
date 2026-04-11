@@ -1,0 +1,86 @@
+{
+  "Grass": {
+    "North": ["Grass", "Bottom","BottomRight", "BottomLeft"],
+    "South": ["Grass", "Top", "TopRight", "TopLeft"],
+    "East": ["Grass", "Left", "TopLeft", "TopRight"],
+    "West": ["Grass", "Right", "TopRight", "TopLeft"]
+  },
+  "Center": {
+    "North": ["Center", "Top", "InverseCornerBL", "InverseCornerBR"],
+    "South": ["Center", "Bottom", "InverseCornerTR", "InverseCornerTL"],
+    "East": ["Center", "Right", "InverseCornerTL", "InverseCornerBL"],
+    "West": ["Center", "Left", "InverseCornerTR", "InverseCornerBR"]
+  },
+  "TopLeft": {
+    "North": ["Grass"],
+    "South": ["Left", "BottomLeft", "InverseCornerBR"],
+    "East": ["Top", "TopRight", "InverseCornerBR"],
+    "West": ["Grass"]
+  },
+  "Top": {
+    "North": ["Grass"],
+    "South": ["Center", "Bottom", "InverseCornerTL", "InverseCornerTR"],
+    "East": ["TopRight", "InverseCornerBR"],
+    "West": ["TopLeft", "InverseCornerBL"]
+  },
+  "TopRight": {
+    "North": ["Grass"],
+    "South": ["Right", "BottomRight", "InverseCornerBL"],
+    "East": ["Grass", "Top", "TopLeft"],
+    "West": ["Top", "TopLeft", "InverseCornerBL"]
+  },
+  "Right": {
+    "North": ["TopRight", "Right", "InverseCornerTL"],
+    "South": ["Right", "BottomRight", "InverseCornerBL"],
+    "East": ["Grass"],
+    "West": ["Center", "Left", "InverseCornerBR", "InverseCornerBL"]
+  },
+  "BottomRight": {
+    "North": ["Right", "TopRight", "InverseCornerTL"],
+    "South": ["Grass"],
+    "East": ["Grass"],
+    "West": ["Bottom", "BottomLeft", "InverseCornerTL"]
+  },
+  "Bottom": {
+    "North": ["Center", "Top", "InverseCornerBL", "InverseCornerBR"],
+    "South": ["Grass"],
+    "East": ["Bottom", "BottomRight", "InverseCornerTR"],
+    "West": ["Bottom", "BottomLeft", "InverseCornerTL"]
+  },
+  "BottomLeft": {
+    "North": ["Left", "TopLeft", "InverseCornerTR"],
+    "South": ["Grass"],
+    "East": ["Bottom", "BottomRight", "InverseCornerTR"],
+    "West": ["Grass"]
+  },
+  "Left": {
+    "North": ["Left", "TopLeft", "InverseCornerTR"],
+    "South": ["Left", "BottomLeft", "InverseCornerBR"],
+    "East": ["Center", "InverseCornerTL", "InverseCornerBL"],
+    "West": ["Right", "BottomRight"]
+  },
+  "InverseCornerTR": {
+    "North": ["Center", "Top", "InverseCornerBL", "InverseCornerBR"],
+    "South": ["Left", "BottomLeft", "InverseCornerBR"],
+    "East": ["Center", "Right", "InverseCornerTL", "InverseCornerBL"],
+    "West": ["Bottom", "BottomLeft"]
+  },
+  "InverseCornerTL": {
+    "North": ["Center", "Top", "InverseCornerBL", "InverseCornerBR"],
+    "South": ["Right", "BottomRight", "InverseCornerBL"],
+    "East": ["Bottom", "BottomRight", "InverseCornerTR"],
+    "West": ["Center", "Left", "InverseCornerTR", "InverseCornerBR"]
+  },
+  "InverseCornerBL": {
+    "North": ["Right", "TopRight", "InverseCornerTL"],
+    "South": ["Center", "Bottom", "InverseCornerTR", "InverseCornerTL"],
+    "East": ["Top", "TopRight", "InverseCornerBR"],
+    "West": ["Center", "Left", "InverseCornerTR", "InverseCornerBR"]
+  },
+  "InverseCornerBR": {
+    "North": ["Left", "TopLeft"],
+    "South": ["Center", "Bottom", "InverseCornerTR", "InverseCornerTL"],
+    "East": ["Center", "Right", "InverseCornerTL", "InverseCornerBL"],
+    "West": ["Top", "TopLeft"]
+  }
+}
