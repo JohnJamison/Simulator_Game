@@ -23,6 +23,14 @@ use crate::environment::water::WaterVariant;
 use crate::environment::cliffs::CliffVariant; // Make sure this path matches your project!
 use crate::WORLD_SIZE;
 
+
+//  ---------------  Environment Variables  ---------------
+const CHANCE_OF_OPENING: f32 = 0.3;
+const MIN_CLIFF_OPENING_WIDTH: usize = 2;
+const MAX_CLIFF_OPENING_WIDTH: usize = 8;
+
+
+
 // =====================================================================
 //   HELPERS: SAFE GRID CHECKING
 // =====================================================================
@@ -39,6 +47,45 @@ fn is_active_safe(grid: &[[bool; WORLD_SIZE]; WORLD_SIZE], x: isize, y: isize) -
 fn is_empty_safe(grid: &[[bool; WORLD_SIZE]; WORLD_SIZE], x: isize, y: isize) -> bool {
     if x < 0 || x >= WORLD_SIZE as isize || y < 0 || y >= WORLD_SIZE as isize { return true; }
     !grid[x as usize][y as usize]
+}
+
+//  ----------  safe_cliff_opening  ----------
+//  Ensure's that a considered opening for a cliff is valid. Achieves this by
+//  making sure that the opening does not open up to a wall. 
+//  vertical -> 1 = vertical wall, 0 = horizontal wall. This tells the function
+//  whether to check vertically (top, bottom ) or horizontally (left, right).
+fn safe_cliff_opening(grid: &[[Tile; WORLD_SIZE]; WORLD_SIZE], x: isize, y: isize, vertical: bool) -> bool {
+    
+    // If the wall is vertical (Left/Right), the player walks HORIZONTALLY through the opening.
+    // We must check if the tiles to the Left (x-1) and Right (x+1) are Grass or Center!
+    if vertical {
+        if x + 1 < WORLD_SIZE as isize && x - 1 >= 0 && y >= 0 && y < WORLD_SIZE as isize {
+            let xu_right = (x + 1) as usize;
+            let xu_left = (x - 1) as usize;
+            let yu = y as usize;
+
+            if (grid[xu_right][yu] == Tile::Grass || grid[xu_right][yu] == Tile::Cliff(CliffVariant::Center)) && 
+               (grid[xu_left][yu] == Tile::Grass || grid[xu_left][yu] == Tile::Cliff(CliffVariant::Center)) {
+                return true;
+            }
+        }
+        return false;
+        
+    // If the wall is horizontal (Top/Bottom), the player walks VERTICALLY through the opening.
+    // We must check if the tiles Above (y-1) and Below (y+1) are Grass or Center!
+    } else {
+        if y + 1 < WORLD_SIZE as isize && y - 1 >= 0 && x >= 0 && x < WORLD_SIZE as isize {
+            let xu = x as usize;
+            let yu_up = (y + 1) as usize;
+            let yu_down = (y - 1) as usize;
+            
+            if (grid[xu][yu_up] == Tile::Grass || grid[xu][yu_up] == Tile::Cliff(CliffVariant::Center)) && 
+               (grid[xu][yu_down] == Tile::Grass || grid[xu][yu_down] == Tile::Cliff(CliffVariant::Center)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 // ===============================================================================
@@ -98,33 +145,39 @@ fn cleanup_terrain_layer(grid: &mut [[bool; WORLD_SIZE]; WORLD_SIZE], min_pond_s
         }
         *grid = next2;
 
-        // Pass 3: Fat Corners (Fixes 1-tile diagonal overlaps)
+        // Pass 3: Fat Corners (Fixes 1-tile diagonal overlaps & double-inverses)
         let mut next3 = *grid;
         //  for every cell
         for x in 0..(WORLD_SIZE - 1) {
             for y in 0..(WORLD_SIZE - 1) {
-                //  check a 2x2 area, x is current cell
-                //  [0  0]  and tells us if it is a 
-                //  [x  0]  water/cliff  tile or not
+                //  check a 2x2 area
                 let w_tl = grid[x][y+1]; let w_tr = grid[x+1][y+1];
                 let w_bl = grid[x][y]; let w_br = grid[x+1][y];
                 let count = (w_tl as u8) + (w_tr as u8) + (w_bl as u8) + (w_br as u8);
 
-                //  if  3 of these cells are water/cliff/...
+                //  if 3 of these cells are active
                 if count == 3 {
 
-                    //  Set (px,py) equal to the cell where the inverse corner
-                    //  tile should be. Determined by being diagonally opposed
-                    //  to the cell that is the outlier
+                    //  Find the Pivot
                     let (px, py) = if !w_tl { (x+1, y) } else if !w_tr { (x, y) } else if !w_bl { (x+1, y+1) } else { (x, y+1) };
                     let (pxi, pyi) = (px as isize, py as isize);
 
-                    //  Ensure cell isn't out of bounds
+                    //  Check all 4 Cardinals
                     let n = is_active_safe(grid, pxi, pyi-1); let s = is_active_safe(grid, pxi, pyi+1);
                     let e = is_active_safe(grid, pxi+1, pyi); let w = is_active_safe(grid, pxi-1, pyi);
+                    
+                    //  Check all 4 Diagonals
+                    let nw = is_active_safe(grid, pxi-1, pyi-1);
+                    let ne = is_active_safe(grid, pxi+1, pyi-1);
+                    let sw = is_active_safe(grid, pxi-1, pyi+1);
+                    let se = is_active_safe(grid, pxi+1, pyi+1);
 
-                    //  If any are false, change the outlier to true.
-                    if !(n && s && e && w) {
+                    let diagonals_active = (nw as u8) + (ne as u8) + (sw as u8) + (se as u8);
+
+                    //  THE 8-NEIGHBOR RULE:
+                    //  The pivot MUST have all 4 cardinals, AND it cannot have more than 1 empty diagonal.
+                    //  If it has less than 3 active diagonals, it is a double-inverse glitch waiting to happen!
+                    if !(n && s && e && w && diagonals_active >= 3) {
                         if !w_tl { next3[x][y+1] = true; } else if !w_tr { next3[x+1][y+1] = true; } else if !w_bl { next3[x][y] = true; } else { next3[x+1][y] = true; }
                         stable = false;
                     }
@@ -163,7 +216,7 @@ fn cleanup_terrain_layer(grid: &mut [[bool; WORLD_SIZE]; WORLD_SIZE], min_pond_s
 
 
 // ===============================================================================
-//                                     Auto Tilers
+//                                Auto Tilers
 // ===============================================================================
 //  Functions responsible for determining what specific water and cliff tiles
 //  should be used for a given tile cell. Used in the final procedural generation
@@ -223,6 +276,127 @@ fn get_cliff_variant(grid: &[[bool; WORLD_SIZE]; WORLD_SIZE], x: usize, y: usize
             else { CliffVariant::Center }
         }
         _ => CliffVariant::Center, 
+    }
+}
+
+
+
+// ===============================================================================
+//                              carve_cliff_openings
+// ===============================================================================
+// Post-processing pass. Scans the generated map for straight cliff edges.
+// If a straight edge meets the minimum size, it rolls a probability check.
+// If successful, it replaces a random segment of the wall with Opening/Center tiles.
+
+fn carve_cliff_openings(grid: &mut [[Tile; WORLD_SIZE]; WORLD_SIZE], chance: f32, min_size: usize, max_size: usize) {
+    let mut visited = [[false; WORLD_SIZE]; WORLD_SIZE];
+
+    // ---------------------------------------------------------
+    //  Scan Vertical Walls
+    // ---------------------------------------------------------
+    for x in 0..WORLD_SIZE {
+        let mut y = 0;
+        while y < WORLD_SIZE {
+
+            if let Tile::Cliff(variant) = grid[x][y] {
+                let x_ = x as isize;
+                let y_ = y as isize;
+                if (variant == CliffVariant::Right || variant == CliffVariant::Left) && !visited[x][y] {
+                    
+                    //  Measure the continuous strip
+                    let mut len = 1;
+                    while y + len < WORLD_SIZE {
+                        if let Tile::Cliff(next_var) = grid[x][y + len] {
+                            if (next_var == variant) && safe_cliff_opening(grid, x_, y_+len as isize, true) {
+                                len += 1;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    // 2. Mark the entire strip as visited so we don't process its middle later
+                    for i in 0..len { visited[x][y + i] = true; }
+
+                    // 3. Roll the Biome Dice!
+                    if len >= min_size && macroquad::rand::gen_range(0.0, 1.0) < chance {
+                        // Determine random size and starting position within the strip
+                        let actual_max = max_size.min(len);
+                        let size = macroquad::rand::gen_range(min_size as u32, (actual_max + 1) as u32) as usize;
+                        let start_offset = macroquad::rand::gen_range(0, (len - size + 1) as u32) as usize;
+
+                        // 4. Carve the opening
+                        for i in 0..size {
+                            let target_y = y + start_offset + i;
+                            
+                            if i == 0 { // Top Tile
+                                grid[x][target_y] = if variant == CliffVariant::Right { Tile::Cliff(CliffVariant::RightOpeningUp) } else { Tile::Cliff(CliffVariant::LeftOpeningUp) };
+                            } else if i == size - 1 { // Bottom Tile
+                                grid[x][target_y] = if variant == CliffVariant::Right { Tile::Cliff(CliffVariant::RightOpeningDown) } else { Tile::Cliff(CliffVariant::LeftOpeningDown) };
+                            } else { // Middle Tiles (Flat plateau)
+                                grid[x][target_y] = Tile::Cliff(CliffVariant::Center);
+                            }
+                        }
+                    }
+                    y += len;
+                    continue;
+                }
+            }
+            y += 1;
+        }
+    }
+
+    // ---------------------------------------------------------
+    //  Scan Horizontal Walls
+    // ---------------------------------------------------------
+    for y in 0..WORLD_SIZE {
+        let mut x = 0;
+        while x < WORLD_SIZE {
+            if let Tile::Cliff(variant) = grid[x][y] {
+                if (variant == CliffVariant::Top || variant == CliffVariant::Bottom) && !visited[x][y] {
+                    
+                    // 1. Measure the continuous strip
+                    let mut len = 1;
+                    while x + len < WORLD_SIZE {
+                        if let Tile::Cliff(next_var) = grid[x + len][y] {
+                            let x_ = x as isize;
+                            let y_ = y as isize;
+                            if (next_var == variant) && safe_cliff_opening(grid, x_ + len as isize, y_, false) {
+                                len += 1;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    // 2. Mark as visited
+                    for i in 0..len { visited[x + i][y] = true; }
+
+                    // 3. Roll the Biome Dice!
+                    if len >= min_size && macroquad::rand::gen_range(0.0, 1.0) < chance {
+                        let actual_max = max_size.min(len);
+                        let size = macroquad::rand::gen_range(min_size as u32, (actual_max + 1) as u32) as usize;
+                        let start_offset = macroquad::rand::gen_range(0, (len - size + 1) as u32) as usize;
+
+                        // 4. Carve the opening
+                        for i in 0..size {
+                            let target_x = x + start_offset + i;
+                            
+                            if i == 0 { // Left Tile
+                                grid[target_x][y] = if variant == CliffVariant::Top { Tile::Cliff(CliffVariant::TopOpeningLeft) } else { Tile::Cliff(CliffVariant::BottomOpeningLeft) };
+                            } else if i == size - 1 { // Right Tile
+                                grid[target_x][y] = if variant == CliffVariant::Top { Tile::Cliff(CliffVariant::TopOpeningRight) } else { Tile::Cliff(CliffVariant::BottomOpeningRight) };
+                            } else { // Middle Tiles (Flat plateau)
+                                grid[target_x][y] = Tile::Cliff(CliffVariant::Center);
+                            }
+                        }
+                    }
+                    x += len;
+                    continue;
+                }
+            }
+            x += 1;
+        }
     }
 }
 
@@ -417,6 +591,18 @@ pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
             }
         }
     }
+
+    // ---------------------------------------------------------
+    // PHASE 4: BIOME POST-PROCESSING
+    // ---------------------------------------------------------
+    // Parameters: (grid, chance_of_opening, min_width, max_width)
+    // 0.6 = 60% chance a valid straight wall gets a ramp.
+    carve_cliff_openings(&mut final_grid, CHANCE_OF_OPENING, MIN_CLIFF_OPENING_WIDTH, MAX_CLIFF_OPENING_WIDTH);
     
     final_grid
 }
+
+//  Ring around mountains,
+//  Find 
+//  An entrance must have both openings
+//  the distance between an opening path and a 

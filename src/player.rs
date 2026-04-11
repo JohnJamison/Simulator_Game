@@ -25,11 +25,11 @@ pub struct Player {
 impl Player {
     pub fn new() -> Self {
         Self {
-            pixel_x: 640.0, pixel_y: 640.0,
+            pixel_x: (WORLD_SIZE as f32 / 2.0) * 64.0, pixel_y: (WORLD_SIZE as f32 / 2.0) * 64.0,
             dir: Direction::Down, is_moving: false, 
             left_foot: true, anim_timer: 0.0,
             is_fishing: false, fishing_timer: 0.0,
-            hunger: 0.0, thirst: 0.0, sleep: 0.0, energy: 100.0,
+            hunger: 0.0, thirst: 0.0, sleep: 0.0, energy: 500.0,
         }
     }
 
@@ -90,7 +90,7 @@ impl Player {
             }
         }
 
-        let speed = 250.0 * dt; 
+        let speed = 500.0 * dt; 
         let mut dx = 0.0;
         let mut dy = 0.0;
 

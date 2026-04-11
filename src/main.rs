@@ -70,7 +70,7 @@ async fn main() {
     let tile_size = 64.0; 
     
     // Load the master environment sheet!
-    let env_sheet = GameAsset::load("assets/master_sheet_new.png", "EnvSheet").await;
+    let env_sheet = GameAsset::load("assets/master_sheet.png", "EnvSheet").await;
     let player_sprite = GameAsset::load("assets/player.png", "Player").await;
     let fishing_sprite = GameAsset::load("assets/player_fishing.png", "Fishing").await; // NEW!
     let bobber_sprite = GameAsset::load("assets/bobber.png", "Bobber").await; // NEW!

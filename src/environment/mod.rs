@@ -38,7 +38,7 @@ pub trait TileBehavior {
 impl TileBehavior for Tile {
     fn hitbox(&self, x: usize, y: usize, tile_size: f32) -> Vec<Rect> {
         match self {
-            Tile::Water(w) => w.hitbox(x, y, tile_size),
+            //Tile::Water(w) => w.hitbox(x, y, tile_size),
             Tile::Bush | Tile::BerryBush => bush::hitbox(x, y, tile_size),
             //Tile::Cliff(c) => c.hitbox(x, y, tile_size),
             _ => vec![]

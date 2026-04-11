@@ -78,10 +78,10 @@ impl TileBehavior for CliffVariant {
             LeftOpeningDown => Some((2.0, 4.0)), 
             RightOpeningUp => Some((2.0, 5.0)), 
             RightOpeningDown => Some((2.0, 6.0)), 
-            BottomOpeningLeft => Some((3.0, 5.0)), 
-            BottomOpeningRight => Some((4.0, 5.0)),
-            TopOpeningLeft => Some((3.0, 6.0)), 
-            TopOpeningRight => Some((4.0, 6.0)),
+            BottomOpeningLeft => Some((3.0, 6.0)), 
+            BottomOpeningRight => Some((4.0, 6.0)),
+            TopOpeningLeft => Some((3.0, 5.0)), 
+            TopOpeningRight => Some((4.0, 5.0)),
         }
     }
 }

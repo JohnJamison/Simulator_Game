@@ -27,7 +27,7 @@ impl TileBehavior for WaterVariant {
         let py = y as f32 * tile_size;
 
         match self {
-            Center => vec![Rect::new(px, py, 0.0, 0.0)],
+            Center => vec![],
             TopLeft => vec![Rect::new(px + half, py + half, half, half)],
             Top => vec![Rect::new(px, py + half, tile_size, half)],
             TopRight => vec![Rect::new(px + half, py, half, half)],
