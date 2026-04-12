@@ -2,6 +2,7 @@ use macroquad::prelude::*;
 use crate::environment::Tile;
 use crate::inventory::{Inventory, Item};
 use crate::player::Player;
+use crate::environment::biomes::Biome;
 use crate::WORLD_SIZE;
 
 #[derive(PartialEq)]
@@ -12,6 +13,7 @@ pub struct GameState {
     pub inventory: Inventory,
     pub player: Player,
     pub grid: [[Tile; WORLD_SIZE]; WORLD_SIZE],
+    pub biome: Biome,
     
     pub drain_hunger: bool, pub drain_thirst: bool, pub drain_sleep: bool,
     
@@ -25,11 +27,15 @@ pub struct GameState {
 
 impl GameState {
     pub fn new() -> Self {
+        let starting_biome = Biome::default();
+        let starting_grid = crate::world_gen::generate_wfc_grid(&starting_biome);
+
         GameState {
             mode: GameMode::Play,
             inventory: Inventory::new(),
             player: Player::new(),
-            grid: crate::world_gen::generate_wfc_grid(),
+            biome: starting_biome,
+            grid: starting_grid,
             drain_hunger: true, drain_thirst: true, drain_sleep: true,
             inv_selection: 0, craft_selection: 0, settings_selection: 0,
             last_click_time: 0.0, last_clicked_idx: None,

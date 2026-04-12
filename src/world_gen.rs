@@ -14,20 +14,13 @@
 //  6.  generate_wfc_grid():        Responsible for generating world                                                                       ||
 //                                                                                                                                         ||
 // ==========================================================================================================================================
-
-
 use macroquad::prelude::*;
 use noise::{NoiseFn, Perlin};
 use crate::environment::Tile;
 use crate::environment::water::WaterVariant;
-use crate::environment::cliffs::CliffVariant; // Make sure this path matches your project!
+use crate::environment::cliffs::CliffVariant;
+use crate::environment::biomes::Biome;
 use crate::WORLD_SIZE;
-
-
-//  ---------------  Environment Variables  ---------------
-const CHANCE_OF_OPENING: f32 = 0.3;
-const MIN_CLIFF_OPENING_WIDTH: usize = 2;
-const MAX_CLIFF_OPENING_WIDTH: usize = 8;
 
 
 
@@ -255,17 +248,23 @@ fn get_water_variant(grid: &[[bool; WORLD_SIZE]; WORLD_SIZE], x: usize, y: usize
 
 //  ----------  Cliff Variant ---------
 
-fn get_cliff_variant(grid: &[[bool; WORLD_SIZE]; WORLD_SIZE], x: usize, y: usize) -> CliffVariant {
+fn get_cliff_variant(elevation: &[[u8; WORLD_SIZE]; WORLD_SIZE], x: usize, y: usize, current_layer: u8) -> CliffVariant {
     let (xi, yi) = (x as isize, y as isize);
-    let n = is_active_safe(grid, xi, yi - 1); let s = is_active_safe(grid, xi, yi + 1);
-    let e = is_active_safe(grid, xi + 1, yi); let w = is_active_safe(grid, xi - 1, yi);
-    let nw = is_active_safe(grid, xi - 1, yi - 1); let ne = is_active_safe(grid, xi + 1, yi - 1);
-    let sw = is_active_safe(grid, xi - 1, yi + 1); let se = is_active_safe(grid, xi + 1, yi + 1);
+
+    // A neighbor is considered a solid wall if it is AT LEAST as high as our current layer!
+    let check_height = |nx: isize, ny: isize| -> bool {
+        if nx < 0 || nx >= WORLD_SIZE as isize || ny < 0 || ny >= WORLD_SIZE as isize { return false; }
+        elevation[nx as usize][ny as usize] >= current_layer
+    };
+
+    let n = check_height(xi, yi - 1); let s = check_height(xi, yi + 1);
+    let e = check_height(xi + 1, yi); let w = check_height(xi - 1, yi);
+    let nw = check_height(xi - 1, yi - 1); let ne = check_height(xi + 1, yi - 1);
+    let sw = check_height(xi - 1, yi + 1); let se = check_height(xi + 1, yi + 1);
 
     let mut mask = 0;
     if n { mask += 1; } if s { mask += 2; } if e { mask += 4; } if w { mask += 8; }
 
-    // Cliffs use the exact same bitmask structure as water!
     match mask {
         1 => CliffVariant::Bottom, 2 => CliffVariant::Top, 4 => CliffVariant::Left, 8 => CliffVariant::Right,        
         5 => CliffVariant::BottomLeft, 6 => CliffVariant::TopLeft, 9 => CliffVariant::BottomRight, 10 => CliffVariant::TopRight,    
@@ -412,16 +411,13 @@ fn carve_cliff_openings(grid: &mut [[Tile; WORLD_SIZE]; WORLD_SIZE], chance: f32
 //  will be placed on the map, and uses output to add cliffs. Cliffs cannot
 //  overlay water tiles. Tiles are determined using Boolean maps of world size.
 
-pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
+pub fn generate_wfc_grid(biome: &Biome) -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
     
     // ---------------------------------------------------------
     //              PHASE 1 - Water Generation
     // ---------------------------------------------------------
     let perlin = Perlin::new(macroquad::rand::rand());
-    let mut is_water = [[false; WORLD_SIZE]; WORLD_SIZE];
-
-    //  Zoom on the noise
-    let noise_scale = 0.08;     
+    let mut is_water = [[false; WORLD_SIZE]; WORLD_SIZE];  
     
     //  ----------  Generate Noise  ----------
     //  Get the perlin value for every cell and set it to water
@@ -429,7 +425,7 @@ pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
     //  coordinate values to create zoom
     for x in 0..WORLD_SIZE {
         for y in 0..WORLD_SIZE {
-            if perlin.get([x as f64 * noise_scale, y as f64 * noise_scale]) < -0.3 {
+            if perlin.get([x as f64 * biome.water_scale, y as f64 * biome.water_scale]) < biome.water_threshold {
                 is_water[x][y] = true;
             }
         }
@@ -491,85 +487,132 @@ pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
     
     //  generate new perlin map
     let cliff_perlin = Perlin::new(macroquad::rand::rand() + 100); 
-    let mut is_cliff = [[false; WORLD_SIZE]; WORLD_SIZE];
-    
-    // 1. Lower the scale slightly so the cliff blobs are wider
-    let cliff_scale = 0.09; 
+    let mut elevation = [[0u8; WORLD_SIZE]; WORLD_SIZE];
 
-
-    //  ----------  Generate Noise  ----------
+    // 1. Generate Raw Elevation dynamically based on Biome settings
     for x in 0..WORLD_SIZE {
         for y in 0..WORLD_SIZE {
             if !is_water[x][y] {
-                if cliff_perlin.get([x as f64 * cliff_scale, y as f64 * cliff_scale]) > -0.3 {
-                    is_cliff[x][y] = true;
+                let noise = cliff_perlin.get([x as f64 * biome.cliff_scale, y as f64 * biome.cliff_scale]);
+                let mut h = 0;
+                
+                // Dynamically check against the requested number of layers!
+                for l in 0..biome.cliff_layers {
+                    let threshold = biome.cliff_threshold + (l as f64 * biome.cliff_spacing);
+                    if noise > threshold { h += 1; }
                 }
+                elevation[x][y] = h;
             }
         }
     }
 
-    // Carve an even larger safe spawn island for cliffs
+    // 2. Carve safe spawn island
+    let middle = WORLD_SIZE as f32 / 2.0;
     for x in 0..WORLD_SIZE {
         for y in 0..WORLD_SIZE {
             if ((x as f32 - middle).powi(2) + (y as f32 - middle).powi(2)).sqrt() <= 6.5 {
-                is_cliff[x][y] = false; 
+                elevation[x][y] = 0; 
             }
         }
     }
 
-    // ---------- Smoothing process ----------
-    for _ in 0..2 {
-        let mut next = is_cliff;
-        for x in 1..(WORLD_SIZE - 1) {
-            for y in 1..(WORLD_SIZE - 1) {
-                // CRITICAL: Prevent cliffs from smoothing into water
-                if is_water[x][y] { continue; } 
+    // 3. The Masking Loop (Process each layer individually!)
+    for current_layer in 1..=biome.cliff_layers {
+        let mut layer_mask = [[false; WORLD_SIZE]; WORLD_SIZE];
 
-                let mut neighbors = 0;
-                for dx in -1..=1 {
-                    for dy in -1..=1 {
-                        if dx != 0 || dy != 0 {
-                            if is_cliff[(x as isize + dx) as usize][(y as isize + dy) as usize] { neighbors += 1; }
-                        }
-                    }
-                }
-                if !is_cliff[x][y] && neighbors >= 5 { next[x][y] = true; }
-                else if is_cliff[x][y] && neighbors <= 3 { next[x][y] = false; }
+        // Extract boolean mask for just this level
+        for x in 0..WORLD_SIZE {
+            for y in 0..WORLD_SIZE {
+                if elevation[x][y] >= current_layer { layer_mask[x][y] = true; }
             }
         }
-        is_cliff = next;
-    }
 
-    // --- PHASE 2.5: THE GRASS BUFFER ---
-    // Forbid cliffs from touching water directly to prevent sprite shearing
-    for x in 0..WORLD_SIZE {
-        for y in 0..WORLD_SIZE {
-            if is_cliff[x][y] {
-                let mut near_water = false;
-
-                //  search surrounding 3x3 tiles
-                for dx in -1..=1 {
-                    for dy in -1..=1 {
-                        let nx = x as isize + dx;
-                        let ny = y as isize + dy;
-                        if nx >= 0 && nx < WORLD_SIZE as isize && ny >= 0 && ny < WORLD_SIZE as isize {
-                            if is_water[nx as usize][ny as usize] {
-                                near_water = true;
+        // CA Smoothing
+        for _ in 0..2 {
+            let mut next = layer_mask;
+            for x in 1..(WORLD_SIZE - 1) {
+                for y in 1..(WORLD_SIZE - 1) {
+                    if is_water[x][y] { continue; } 
+                    let mut neighbors = 0;
+                    for dx in -1..=1 {
+                        for dy in -1..=1 {
+                            if dx != 0 || dy != 0 {
+                                if layer_mask[(x as isize + dx) as usize][(y as isize + dy) as usize] { neighbors += 1; }
                             }
                         }
                     }
+                    if !layer_mask[x][y] && neighbors >= 5 { next[x][y] = true; }
+                    else if layer_mask[x][y] && neighbors <= 3 { next[x][y] = false; }
                 }
-                // If water is within 1 tile, delete the cliff
-                if near_water {
-                    is_cliff[x][y] = false;
+            }
+            layer_mask = next;
+        }
+
+        // ---------------------------------------------------------
+        // THE BUFFER ZONES (Fixes the Overlapping/Shearing!)
+        // ---------------------------------------------------------
+        if current_layer == 1 {
+            // LAYER 1: Water Buffer (Must be 2 tiles away from water)
+            for x in 0..WORLD_SIZE {
+                for y in 0..WORLD_SIZE {
+                    if layer_mask[x][y] {
+                        let mut near_water = false;
+                        for dx in -2..=2 {
+                            for dy in -2..=2 {
+                                let nx = x as isize + dx; let ny = y as isize + dy;
+                                if nx >= 0 && nx < WORLD_SIZE as isize && ny >= 0 && ny < WORLD_SIZE as isize {
+                                    if is_water[nx as usize][ny as usize] { near_water = true; }
+                                }
+                            }
+                        }
+                        if near_water { layer_mask[x][y] = false; }
+                    }
+                }
+            }
+        } else {
+            // LAYER 2+: Plateau Buffer 
+            // A 2-tile radius forces a wide terrace and prevents Algorithm Fighting with Pass 2!
+            for x in 0..WORLD_SIZE {
+                for y in 0..WORLD_SIZE {
+                    if layer_mask[x][y] {
+                        let mut near_ledge = false;
+                        for dx in -2..=2 { // 2-TILE RADIUS!
+                            for dy in -2..=2 {
+                                let nx = x as isize + dx; let ny = y as isize + dy;
+                                if nx >= 0 && nx < WORLD_SIZE as isize && ny >= 0 && ny < WORLD_SIZE as isize {
+                                    // If neighbor is a sheer drop (lower than the layer we are sitting on)
+                                    if elevation[nx as usize][ny as usize] < current_layer - 1 {
+                                        near_ledge = true;
+                                    }
+                                } else {
+                                    near_ledge = true; // Map edges are sheer drops
+                                }
+                            }
+                        }
+                        if near_ledge { layer_mask[x][y] = false; }
+                    }
+                }
+            }
+        }
+
+        // Clean up the layer!
+        cleanup_terrain_layer(&mut layer_mask, 4);
+
+        // Save validated mask back to the 3D elevation map
+        for x in 0..WORLD_SIZE {
+            for y in 0..WORLD_SIZE {
+                if layer_mask[x][y] {
+                    // If cleanup expanded a layer, ensure the 3D map reflects the height boost
+                    if elevation[x][y] < current_layer {
+                        elevation[x][y] = current_layer;
+                    }
+                } else if !layer_mask[x][y] && elevation[x][y] >= current_layer {
+                    // If pruned by cleanup or buffers, drop all stacked elevation down!
+                    elevation[x][y] = current_layer - 1; 
                 }
             }
         }
     }
-
-    // Now clean up the remaining cliffs!
-    cleanup_terrain_layer(&mut is_cliff, 4);
-
     // ---------------------------------------------------------
     //              PHASE 3 - COMPOSITING & PAINTING
     // ---------------------------------------------------------
@@ -584,8 +627,9 @@ pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
         for y in 0..WORLD_SIZE {
             if is_water[x][y] {
                 final_grid[x][y] = Tile::Water(get_water_variant(&is_water, x, y));
-            } else if is_cliff[x][y] {
-                final_grid[x][y] = Tile::Cliff(get_cliff_variant(&is_cliff, x, y));
+            } else if elevation[x][y] > 0 {
+                // Pass the 3D elevation map and the specific height level!
+                final_grid[x][y] = Tile::Cliff(get_cliff_variant(&elevation, x, y, elevation[x][y]));
             } else {
                 final_grid[x][y] = Tile::Grass;
             }
@@ -597,12 +641,62 @@ pub fn generate_wfc_grid() -> [[Tile; WORLD_SIZE]; WORLD_SIZE] {
     // ---------------------------------------------------------
     // Parameters: (grid, chance_of_opening, min_width, max_width)
     // 0.6 = 60% chance a valid straight wall gets a ramp.
-    carve_cliff_openings(&mut final_grid, CHANCE_OF_OPENING, MIN_CLIFF_OPENING_WIDTH, MAX_CLIFF_OPENING_WIDTH);
+    carve_cliff_openings(&mut final_grid, biome.ramp_chance, biome.min_ramp_width, biome.max_ramp_width);
     
-    final_grid
-}
+    export_map_to_png(&final_grid, biome);
 
-//  Ring around mountains,
-//  Find 
-//  An entrance must have both openings
-//  the distance between an opening path and a 
+    final_grid
+} 
+
+// ===============================================================================
+//                              export_map_to_png
+// ===============================================================================
+// Renders the entire generated 2D grid into an Image buffer and saves it as a PNG.
+// Extremely useful for debugging biome variables without having to walk around.
+pub fn export_map_to_png(grid: &[[Tile; WORLD_SIZE]; WORLD_SIZE], biome: &Biome) {
+    // 1 tile = 4 pixels (Makes the output image 4x larger and easier to view)
+    let scale = 4; 
+    let img_width = (WORLD_SIZE * scale) as u16;
+    let img_height = (WORLD_SIZE * scale) as u16;
+    
+    // Create a blank canvas
+    let mut img = Image::gen_image_color(img_width, img_height, WHITE);
+
+    for x in 0..WORLD_SIZE {
+        for y in 0..WORLD_SIZE {
+            
+            // Map the tiles to colors. 
+            // We use dark brown for cliff edges to draw topological contour lines!
+            let color = match &grid[x][y] {
+                Tile::Grass => Color::new(0.55, 0.78, 0.45, 1.0),
+                Tile::Water(_) => Color::new(0.25, 0.55, 0.90, 1.0),
+                Tile::Cliff(variant) => {
+                    if *variant == CliffVariant::Center {
+                        Color::new(0.70, 0.55, 0.40, 1.0) // Lighter plateaus
+                    } else {
+                        Color::new(0.45, 0.30, 0.15, 1.0) // Darker sheer edges & ramps
+                    }
+                },
+                _ => Color::new(0.0,0.0,0.0,0.0)
+            };
+
+            // Paint the scaled block of pixels for this specific tile
+            for dx in 0..scale {
+                for dy in 0..scale {
+                    img.set_pixel((x * scale + dx) as u32, (y * scale + dy) as u32, color);
+                }
+            }
+        }
+    }
+
+    // Generate the dynamic filename using the biome variables
+    let filename = format!(
+        "map_ws{}_wt{}_cs{}_ct{}_layers{}.png",
+        biome.water_scale, biome.water_threshold,
+        biome.cliff_scale, biome.cliff_threshold, biome.cliff_layers
+    );
+
+    // Save it to the root of your project directory!
+    img.export_png(&filename);
+    println!("SUCCESS: Exported world map to {}", filename);
+}

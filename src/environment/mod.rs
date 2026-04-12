@@ -8,6 +8,7 @@ pub mod tree1;
 pub mod water;
 pub mod cliffs;
 pub mod wfc_rules;
+pub mod biomes;
 
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

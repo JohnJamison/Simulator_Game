@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 
-pub const WORLD_SIZE: usize = 41;
+pub const WORLD_SIZE: usize = 100;
 
 mod environment;
 mod world_gen;
